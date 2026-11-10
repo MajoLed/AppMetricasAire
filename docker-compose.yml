@@ -1,0 +1,81 @@
+version: "3.8"
+services:
+  frontend:
+    build: ./proyectoapp
+    container_name: frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./proyectoapp/data:/app/data
+    environment:
+      - ENTIDAD=celular:001
+      - ADMIN_USER=${ADMIN_USER}
+      - ADMIN_PASS=${ADMIN_PASS}
+    command: python3 app.py
+
+  orion:
+    image: fiware/orion-ld
+    hostname: orion
+    container_name: orion
+    depends_on:
+      - mongo-db
+    expose:
+      - "1026"
+    command: -dbhost mongo-db -logLevel DEBUG
+
+  quantumleap:
+    image: orchestracities/quantumleap
+    hostname: quantumleap
+    container_name: fiware-quantumleap
+    expose:
+      - "8668"
+    depends_on:
+      - crate-db
+    environment:
+      - CRATE_HOST=crate-db
+      - LOGLEVEL=DEBUG
+
+  mongo-db:
+    image: mongo:4.4
+    hostname: mongo-db
+    container_name: db-mongo
+    volumes:
+      - mongo-db:/data/db
+
+  crate-db:
+    image: crate
+    hostname: crate-db
+    container_name: db-crate
+    expose:
+      - "4200"
+    command: crate -Cauth.host_based.enabled=false -Ccluster.name=democluster -Chttp.cors.enabled=true -Chttp.cors.allow-origin="*"
+    environment:
+      - CRATE_HEAP_SIZE=2g
+    volumes:
+      - crate-db:/data
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    depends_on:
+      - crate-db
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana:/var/lib/grafana
+
+  iot-api:
+    build: ./iot-api
+    container_name: iot-api
+    restart: unless-stopped
+    env_file:
+      - ./iot-api/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - orion
+
+volumes:
+  mongo-db:
+  crate-db:
+  grafana:
